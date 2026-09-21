@@ -1,20 +1,23 @@
-# Ultroid - UserBot
-# Copyright (C) 2021-2026 TeamUltroid
-# This file is a part of < https://github.com/TeamUltroid/Ultroid/ >
-# PLease read the GNU Affero General Public License in <https://www.github.com/TeamUltroid/Ultroid/blob/main/LICENSE/>.
-
 FROM theteamultroid/ultroid:main
 
-# set timezone
+# Set timezone
 ENV TZ=Asia/Kolkata
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+# Copy requirements terlebih dahulu
+COPY requirements.txt .
+
+# Install requirements
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy installer
 COPY installer.sh .
 
+# Jalankan installer
 RUN bash installer.sh
 
-# changing workdir
+# Changing workdir
 WORKDIR "/root/TeamUltroid"
 
-# start the bot.
+# Start the bot
 CMD ["bash", "startup"]
