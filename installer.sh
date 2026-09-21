@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-REPO="https://github.com/temankuya/Merintis.git"
+REPO="https://github.com/Mamacantik1028/Gcpush.git"
 CURRENT_DIR="$(pwd)"
 ENV_FILE_PATH=".env"
 DIR="/root/TeamUltroid"
