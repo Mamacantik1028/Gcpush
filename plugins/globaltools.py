@@ -204,6 +204,7 @@ async def _(e):
         await eor(ev, f"Promoted {name.first_name} in Total : {c} {key} chats.")
         
 
+
 @ultroid_cmd(pattern="kirim (\d+) (\d+) ?(.*)")
 async def kirim_cast(event):
     repetitions = int(event.pattern_match.group(1))
@@ -215,7 +216,8 @@ async def kirim_cast(event):
     # =========================================================
 
     if raw_texts:
-        # Kalau command diberi teks langsung
+        # Pesan diberikan langsung:
+        # .kirim 2 30 Halo | Apa kabar?
         msg_list = [
             x.strip()
             for x in raw_texts.split("|")
@@ -223,7 +225,7 @@ async def kirim_cast(event):
         ]
 
     elif event.is_reply:
-        # Kalau command berupa reply
+        # Pesan diambil dari reply
         reply = await event.get_reply_message()
 
         if not reply or not reply.text:
@@ -235,9 +237,16 @@ async def kirim_cast(event):
         msg_list = [reply.text.strip()]
 
     else:
-        # Kalau tidak ada teks/reply, baca dari kata.txt
+        # =====================================================
+        # AMBIL PESAN DARI kata.txt
+        # =====================================================
+
         try:
-            with open("kata.txt", "r", encoding="utf-8") as f:
+            with open(
+                "kata.txt",
+                "r",
+                encoding="utf-8"
+            ) as f:
                 content = f.read().strip()
 
         except FileNotFoundError:
@@ -253,13 +262,15 @@ async def kirim_cast(event):
             )
 
         # =====================================================
-        # PISAHKAN PESAN BERDASARKAN:
+        # PISAHKAN PESAN BERDASARKAN NOMOR
         #
-        # 1. Pesan pertama
+        # Contoh:
         #
-        # 2. Pesan kedua
+        # 1. Halo
         #
-        # 3. Pesan ketiga
+        # 2. Apa kabar?
+        #
+        # 3. Selamat pagi
         #
         # =====================================================
 
@@ -269,10 +280,12 @@ async def kirim_cast(event):
         )
 
         # =====================================================
-        # HAPUS NOMOR DI DEPAN
+        # HAPUS NOMOR DI DEPAN PESAN
         #
         # 1. Halo
+        #
         # menjadi:
+        #
         # Halo
         # =====================================================
 
@@ -287,6 +300,10 @@ async def kirim_cast(event):
             if msg.strip()
         ]
 
+    # =========================================================
+    # CEK PESAN
+    # =========================================================
+
     if not msg_list:
         return await eor(
             event,
@@ -294,7 +311,7 @@ async def kirim_cast(event):
         )
 
     # =========================================================
-    # STATUS
+    # STATUS AWAL
     # =========================================================
 
     kk = await event.eor(
@@ -317,7 +334,7 @@ async def kirim_cast(event):
         event.client._dialogs.extend(dialog)
 
     # =========================================================
-    # AMBIL SEMUA GROUP YANG MEMENUHI SYARAT
+    # AMBIL SEMUA GROUP
     # =========================================================
 
     groups = []
@@ -342,6 +359,10 @@ async def kirim_cast(event):
         ):
             groups.append(chat)
 
+    # =========================================================
+    # CEK GROUP
+    # =========================================================
+
     if not groups:
         return await kk.edit(
             "`Tidak ada grup yang bisa dikirimi pesan.`"
@@ -355,20 +376,24 @@ async def kirim_cast(event):
 
         for index, chat in enumerate(groups):
 
-            # Setiap grup mendapatkan pesan berbeda.
+            # =================================================
+            # PILIH PESAN
             #
-            # Contoh:
-            # Grup 1 -> pesan 1
-            # Grup 2 -> pesan 2
-            # Grup 3 -> pesan 3
-            #
-            # Kalau pesan sudah habis, kembali ke pesan pertama.
+            # Pesan akan bergantian berdasarkan index grup
+            # dan nomor pengulangan.
+            # =================================================
 
-            msg_index = (index + rep) % len(msg_list)
+            msg_index = (
+                index + rep
+            ) % len(msg_list)
 
             msg = msg_list[msg_index]
 
             try:
+
+                # =============================================
+                # KIRIM
+                # =============================================
 
                 await event.client.send_message(
                     chat,
@@ -378,6 +403,10 @@ async def kirim_cast(event):
                 done += 1
 
             except FloodWaitError as fw:
+
+                # =============================================
+                # TUNGGU SESUAI FLOOD WAIT
+                # =============================================
 
                 await asyncio.sleep(
                     fw.seconds + 10
@@ -408,7 +437,31 @@ async def kirim_cast(event):
 
                 er += 1
 
-        # Jangan sleep setelah pengulangan terakhir
+            # =================================================
+            # JEDA 10 DETIK ANTAR-GRUP
+            #
+            # Grup 1
+            #    ↓
+            # 10 detik
+            #    ↓
+            # Grup 2
+            #    ↓
+            # 10 detik
+            #    ↓
+            # Grup 3
+            #
+            # Tidak sleep setelah grup terakhir.
+            # =================================================
+
+            if index < len(groups) - 1:
+                await asyncio.sleep(10)
+
+        # =====================================================
+        # JEDA ANTAR-PUTARAN
+        #
+        # Tidak sleep setelah putaran terakhir.
+        # =====================================================
+
         if rep < repetitions - 1:
             await asyncio.sleep(interval)
 
@@ -417,8 +470,9 @@ async def kirim_cast(event):
     # =========================================================
 
     result = (
-        f"Berhasil mengirim {repetitions} kali "
-        f"ke {done} grup, gagal di {er} grup."
+        f"Berhasil mengirim {done} pesan "
+        f"dalam {repetitions} putaran, "
+        f"gagal di {er} pengiriman."
     )
 
     # =========================================================
@@ -441,8 +495,12 @@ async def kirim_cast(event):
             f"untuk melihat error."
         )
 
-    await kk.edit(result)
+    # =========================================================
+    # TAMPILKAN HASIL
+    # =========================================================
 
+    await kk.edit(result)           
+              
 @ultroid_cmd(pattern="gdemote( (.*)|$)", fullsudo=True)
 async def _(e):
     x = e.pattern_match.group(1).strip()
