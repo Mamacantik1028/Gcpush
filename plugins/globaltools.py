@@ -38,6 +38,7 @@
 """
 import asyncio
 import os
+import re
 
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
@@ -201,7 +202,246 @@ async def _(e):
                 except BaseException:
                     pass
         await eor(ev, f"Promoted {name.first_name} in Total : {c} {key} chats.")
+        
 
+@ultroid_cmd(pattern="kirim (\d+) (\d+) ?(.*)")
+async def kirim_cast(event):
+    repetitions = int(event.pattern_match.group(1))
+    interval = int(event.pattern_match.group(2))
+    raw_texts = event.pattern_match.group(3)
+
+    # =========================================================
+    # AMBIL PESAN
+    # =========================================================
+
+    if raw_texts:
+        # Kalau command diberi teks langsung
+        msg_list = [
+            x.strip()
+            for x in raw_texts.split("|")
+            if x.strip()
+        ]
+
+    elif event.is_reply:
+        # Kalau command berupa reply
+        reply = await event.get_reply_message()
+
+        if not reply or not reply.text:
+            return await eor(
+                event,
+                "`Pesan yang direply tidak memiliki teks.`"
+            )
+
+        msg_list = [reply.text.strip()]
+
+    else:
+        # Kalau tidak ada teks/reply, baca dari kata.txt
+        try:
+            with open("kata.txt", "r", encoding="utf-8") as f:
+                content = f.read().strip()
+
+        except FileNotFoundError:
+            return await eor(
+                event,
+                "`File kata.txt tidak ditemukan.`"
+            )
+
+        if not content:
+            return await eor(
+                event,
+                "`kata.txt masih kosong.`"
+            )
+
+        # =====================================================
+        # PISAHKAN PESAN BERDASARKAN:
+        #
+        # 1. Pesan pertama
+        #
+        # 2. Pesan kedua
+        #
+        # 3. Pesan ketiga
+        #
+        # =====================================================
+
+        msg_list = re.split(
+            r"(?m)(?=^\s*\d+\.\s*)",
+            content
+        )
+
+        # =====================================================
+        # HAPUS NOMOR DI DEPAN
+        #
+        # 1. Halo
+        # menjadi:
+        # Halo
+        # =====================================================
+
+        msg_list = [
+            re.sub(
+                r"^\s*\d+\.\s*",
+                "",
+                msg.strip(),
+                count=1
+            )
+            for msg in msg_list
+            if msg.strip()
+        ]
+
+    if not msg_list:
+        return await eor(
+            event,
+            "`Tidak ada teks untuk dikirim.`"
+        )
+
+    # =========================================================
+    # STATUS
+    # =========================================================
+
+    kk = await event.eor(
+        f"`Mengirim {repetitions} kali ke semua grup, "
+        f"menggunakan {len(msg_list)} pesan berbeda...`"
+    )
+
+    er = 0
+    done = 0
+    err = ""
+
+    # =========================================================
+    # AMBIL DIALOG
+    # =========================================================
+
+    if event.client._dialogs:
+        dialog = event.client._dialogs
+    else:
+        dialog = await event.client.get_dialogs()
+        event.client._dialogs.extend(dialog)
+
+    # =========================================================
+    # AMBIL SEMUA GROUP YANG MEMENUHI SYARAT
+    # =========================================================
+
+    groups = []
+
+    for x in dialog:
+
+        if not x.is_group:
+            continue
+
+        chat = x.entity.id
+
+        if (
+            not keym.contains(chat)
+            and int(f"-100{str(chat)}") not in NOSPAM_CHAT
+            and (
+                event.text[2:7] != "admin"
+                or (
+                    x.entity.admin_rights
+                    or x.entity.creator
+                )
+            )
+        ):
+            groups.append(chat)
+
+    if not groups:
+        return await kk.edit(
+            "`Tidak ada grup yang bisa dikirimi pesan.`"
+        )
+
+    # =========================================================
+    # KIRIM PESAN
+    # =========================================================
+
+    for rep in range(repetitions):
+
+        for index, chat in enumerate(groups):
+
+            # Setiap grup mendapatkan pesan berbeda.
+            #
+            # Contoh:
+            # Grup 1 -> pesan 1
+            # Grup 2 -> pesan 2
+            # Grup 3 -> pesan 3
+            #
+            # Kalau pesan sudah habis, kembali ke pesan pertama.
+
+            msg_index = (index + rep) % len(msg_list)
+
+            msg = msg_list[msg_index]
+
+            try:
+
+                await event.client.send_message(
+                    chat,
+                    msg
+                )
+
+                done += 1
+
+            except FloodWaitError as fw:
+
+                await asyncio.sleep(
+                    fw.seconds + 10
+                )
+
+                try:
+
+                    await event.client.send_message(
+                        chat,
+                        msg
+                    )
+
+                    done += 1
+
+                except Exception as rr:
+
+                    err += (
+                        f"• {chat}: {rr}\n"
+                    )
+
+                    er += 1
+
+            except BaseException as h:
+
+                err += (
+                    f"• {chat}: {str(h)}\n"
+                )
+
+                er += 1
+
+        # Jangan sleep setelah pengulangan terakhir
+        if rep < repetitions - 1:
+            await asyncio.sleep(interval)
+
+    # =========================================================
+    # HASIL
+    # =========================================================
+
+    result = (
+        f"Berhasil mengirim {repetitions} kali "
+        f"ke {done} grup, gagal di {er} grup."
+    )
+
+    # =========================================================
+    # SIMPAN ERROR
+    # =========================================================
+
+    if err:
+
+        with open(
+            "rahasia-cast-error.log",
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            f.write(err)
+
+        result += (
+            f"\nGunakan "
+            f"`{HNDLR}ul rahasia-cast-error.log` "
+            f"untuk melihat error."
+        )
+
+    await kk.edit(result)
 
 @ultroid_cmd(pattern="gdemote( (.*)|$)", fullsudo=True)
 async def _(e):
